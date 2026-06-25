@@ -3,8 +3,9 @@ import fitz  # PyMuPDF
 import requests
 from io import BytesIO
 import re
+import os
 
-st.title("拠点検索アプリ")
+st.title("拠点検索")
 
 PDF_URL = "https://m.media-amazon.com/images/G/09/vendor/RC/FC_List_Operating_hours.pdf"
 
@@ -21,31 +22,24 @@ pattern = re.compile(r"^[A-Z]{2,4}\d{1,2}$")
 
 # --- PDF 全ページから拠点名リンクだけを抽出 ---
 for page in doc:
-    annots = page.annots()
-    if not annots:
-        continue
+    links = page.get_links()
 
-    for annot in annots:
-        if annot.type[0] != 1:  # リンク注釈のみ
+    for link in links:
+        if "uri" not in link:
             continue
 
-        uri = annot.info.get("uri", "")
-        if not uri:
-            continue
+        uri = link["uri"]
 
         # mailto: は除外
         if uri.startswith("mailto:"):
             continue
 
-        # 拠点名は annotation の title または content に入っている
-        title = annot.info.get("title", "").strip()
-        content = annot.info.get("content", "").strip()
+        # URL の末尾のファイル名を取得
+        filename = os.path.basename(uri).replace(".pdf", "").upper()
 
-        candidate = title or content
-
-        # 正規表現で拠点名だけ抽出
-        if pattern.match(candidate):
-            base_points[candidate] = uri
+        # 拠点名の形式に一致するものだけ採用
+        if pattern.match(filename):
+            base_points[filename] = uri
 
 # --- 拠点名をソートして表示 ---
 all_keys = sorted(base_points.keys())
