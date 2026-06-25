@@ -15,34 +15,19 @@ doc = fitz.open(stream=pdf_bytes.read(), filetype="pdf")
 
 base_points = {}
 
-# --- PDF 内の URL を抽出 ---
+# --- PDF 内のリンク注釈から拠点名とURLを抽出 ---
 for page in doc:
-    links = page.get_links()
-    blocks = page.get_text("blocks")
+    annots = page.annots()
+    if annots is None:
+        continue
 
-    for link in links:
-        if "uri" not in link:
-            continue
-
-        lx0, ly0, lx1, ly1 = link["from"]
-        link_center = ((lx0 + lx1) / 2, (ly0 + ly1) / 2)
-
-        # 最も近いテキストブロックを探す
-        nearest_text = None
-        nearest_dist = 999999
-
-        for block in blocks:
-            bx0, by0, bx1, by1, text, *_ = block
-            text_center = ((bx0 + bx1) / 2, (by0 + by1) / 2)
-
-            dist = abs(text_center[0] - link_center[0]) + abs(text_center[1] - link_center[1])
-
-            if dist < nearest_dist:
-                nearest_dist = dist
-                nearest_text = text.strip()
-
-        if nearest_text:
-            base_points[nearest_text] = link["uri"]
+    for annot in annots:
+        if annot.type[0] == 1:  # リンク注釈
+            uri = annot.info.get("uri", None)
+            if uri:
+                text = annot.info.get("content", "").strip()
+                if text:
+                    base_points[text] = uri
 
 # --- 検索窓 ---
 keyword = st.text_input("拠点名を検索")
