@@ -3,7 +3,7 @@ import fitz  # PyMuPDF
 import requests
 from io import BytesIO
 
-st.title("拠点検索")
+st.title("拠点検索アプリ")
 
 PDF_URL = "https://m.media-amazon.com/images/G/09/vendor/RC/FC_List_Operating_hours.pdf"
 
@@ -16,20 +16,33 @@ doc = fitz.open(stream=pdf_bytes.read(), filetype="pdf")
 base_points = {}
 
 # --- PDF 内の URL を抽出 ---
-for page_num, page in enumerate(doc):
+for page in doc:
     links = page.get_links()
-    text_blocks = page.get_text("blocks")
+    blocks = page.get_text("blocks")
 
     for link in links:
-        if "uri" in link:  # 外部PDF URL
-            x0, y0, x1, y1 = link["from"]
+        if "uri" not in link:
+            continue
 
-            # クリック領域に重なるテキストを探す
-            for block in text_blocks:
-                bx0, by0, bx1, by1, text, *_ = block
-                if (bx0 >= x0 and by0 >= y0 and bx1 <= x1 and by1 <= y1):
-                    key = text.strip()
-                    base_points[key] = link["uri"]
+        lx0, ly0, lx1, ly1 = link["from"]
+        link_center = ((lx0 + lx1) / 2, (ly0 + ly1) / 2)
+
+        # 最も近いテキストブロックを探す
+        nearest_text = None
+        nearest_dist = 999999
+
+        for block in blocks:
+            bx0, by0, bx1, by1, text, *_ = block
+            text_center = ((bx0 + bx1) / 2, (by0 + by1) / 2)
+
+            dist = abs(text_center[0] - link_center[0]) + abs(text_center[1] - link_center[1])
+
+            if dist < nearest_dist:
+                nearest_dist = dist
+                nearest_text = text.strip()
+
+        if nearest_text:
+            base_points[nearest_text] = link["uri"]
 
 # --- 検索窓 ---
 keyword = st.text_input("拠点名を検索")
@@ -47,5 +60,4 @@ if selected:
     st.subheader(f"{selected} のPDF")
     st.markdown(f"[PDFを開く]({url})")
 
-    # PDFを埋め込み表示
     st.components.v1.iframe(url, height=600)
