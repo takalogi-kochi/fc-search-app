@@ -15,19 +15,46 @@ doc = fitz.open(stream=pdf_bytes.read(), filetype="pdf")
 
 base_points = {}
 
-# --- PDF 内のリンク注釈から拠点名とURLを抽出 ---
+# --- PDF 内のリンク注釈と周囲テキストから拠点名を抽出 ---
 for page in doc:
-    annots = page.annots()
-    if annots is None:
-        continue
+    links = page.get_links()
+    blocks = page.get_text("blocks")
 
-    for annot in annots:
-        if annot.type[0] == 1:  # リンク注釈
-            uri = annot.info.get("uri", None)
-            if uri:
-                text = annot.info.get("content", "").strip()
-                if text:
-                    base_points[text] = uri
+    for link in links:
+        if "uri" not in link:
+            continue
+
+        uri = link["uri"]
+        lx0, ly0, lx1, ly1 = link["from"]
+        link_center = ((lx0 + lx1) / 2, (ly0 + ly1) / 2)
+
+        # まず注釈からテキストを取得
+        annot_text = ""
+        annots = page.annots()
+        if annots:
+            for annot in annots:
+                if annot.rect.intersects(fitz.Rect(lx0, ly0, lx1, ly1)):
+                    annot_text = annot.info.get("content", "").strip()
+
+        # 注釈にテキストが無い場合は、周囲テキストから最も近いものを取得
+        nearest_text = None
+        nearest_dist = 999999
+
+        for block in blocks:
+            bx0, by0, bx1, by1, text, *_ = block
+            text_center = ((bx0 + bx1) / 2, (by0 + by1) / 2)
+
+            dist = abs(text_center[0] - link_center[0]) + abs(text_center[1] - link_center[1])
+
+            if dist < nearest_dist:
+                nearest_dist = dist
+                nearest_text = text.strip()
+
+        # 最終的な拠点名
+        key = annot_text if annot_text else nearest_text
+
+        if key:
+            base_points[key] = uri
 
 # --- 検索窓 ---
 keyword = st.text_input("拠点名を検索")
