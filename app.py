@@ -21,55 +21,31 @@ pattern = re.compile(r"^[A-Z]{2,4}\d{1,2}$")
 
 # --- PDF 全ページから拠点名リンクだけを抽出 ---
 for page in doc:
-    links = page.get_links()
-    blocks = page.get_text("blocks")
-
-    # 拠点名リンクのY座標帯を推定（左端のリンクのY位置はほぼ一定）
-    y_positions = [link["from"][1] for link in links if "uri" in link]
-    if not y_positions:
+    annots = page.annots()
+    if not annots:
         continue
 
-    # 拠点名リンクのY帯（最も密集している帯を抽出）
-    y_min = min(y_positions)
-    y_max = max(y_positions)
-
-    for link in links:
-        if "uri" not in link:
+    for annot in annots:
+        if annot.type[0] != 1:  # リンク注釈のみ
             continue
 
-        uri = link["uri"]
+        uri = annot.info.get("uri", "")
+        if not uri:
+            continue
 
         # mailto: は除外
         if uri.startswith("mailto:"):
             continue
 
-        x0, y0, x1, y1 = link["from"]
+        # 拠点名は annotation の title または content に入っている
+        title = annot.info.get("title", "").strip()
+        content = annot.info.get("content", "").strip()
 
-        # 拠点名リンクは「縦に密集」している → Y座標帯で判定
-        if not (y_min <= y0 <= y_max):
-            continue
-
-        # 周囲テキストから最も近いものを取得
-        nearest_text = None
-        nearest_dist = 999999
-
-        link_center = ((x0 + x1) / 2, (y0 + y1) / 2)
-
-        for block in blocks:
-            bx0, by0, bx1, by1, text, *_ = block
-            text_center = ((bx0 + bx1) / 2, (by0 + by1) / 2)
-
-            dist = abs(text_center[0] - link_center[0]) + abs(text_center[1] - link_center[1])
-
-            if dist < nearest_dist:
-                nearest_dist = dist
-                nearest_text = text.strip()
+        candidate = title or content
 
         # 正規表現で拠点名だけ抽出
-        if nearest_text:
-            candidate = nearest_text.split()[0]
-            if pattern.match(candidate):
-                base_points[candidate] = uri
+        if pattern.match(candidate):
+            base_points[candidate] = uri
 
 # --- 検索窓 ---
 keyword = st.text_input("拠点名を検索")
