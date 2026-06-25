@@ -3,7 +3,6 @@ import fitz  # PyMuPDF
 import requests
 from io import BytesIO
 import re
-import os
 
 st.title("拠点検索")
 
@@ -20,26 +19,45 @@ base_points = {}
 # 拠点名の形式（例：HND3, KIX2, NGO5）
 pattern = re.compile(r"^[A-Z]{2,4}\d{1,2}$")
 
-# --- PDF 全ページから拠点名リンクだけを抽出 ---
+# --- PDF 全ページから拠点名とURLを抽出 ---
 for page in doc:
-    links = page.get_links()
+    blocks = page.get_text("blocks")
+    annots = page.annots()
 
-    for link in links:
-        if "uri" not in link:
+    if not annots:
+        continue
+
+    for annot in annots:
+        if annot.type[0] != 1:
             continue
 
-        uri = link["uri"]
-
-        # mailto: は除外
-        if uri.startswith("mailto:"):
+        uri = annot.info.get("uri", "")
+        if not uri or uri.startswith("mailto:"):
             continue
 
-        # URL の末尾のファイル名を取得
-        filename = os.path.basename(uri).replace(".pdf", "").upper()
+        # リンクの中心座標
+        x0, y0, x1, y1 = annot.rect
+        link_center = ((x0 + x1) / 2, (y0 + y1) / 2)
 
-        # 拠点名の形式に一致するものだけ採用
-        if pattern.match(filename):
-            base_points[filename] = uri
+        # 最も近いテキストブロックを探す
+        nearest_text = None
+        nearest_dist = 999999
+
+        for block in blocks:
+            bx0, by0, bx1, by1, text, *_ = block
+            text_center = ((bx0 + bx1) / 2, (by0 + by1) / 2)
+
+            dist = abs(text_center[0] - link_center[0]) + abs(text_center[1] - link_center[1])
+
+            if dist < nearest_dist:
+                nearest_dist = dist
+                nearest_text = text.strip()
+
+        # テキストから拠点名を抽出
+        if nearest_text:
+            candidate = nearest_text.split()[0]
+            if pattern.match(candidate):
+                base_points[candidate] = uri
 
 # --- 拠点名をソートして表示 ---
 all_keys = sorted(base_points.keys())
