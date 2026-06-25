@@ -19,7 +19,7 @@ base_points = {}
 # 拠点名の形式（例：HND3, KIX2, NGO5）
 pattern = re.compile(r"^[A-Z]{2,4}\d{1,2}$")
 
-# --- PDF 内のリンクから拠点名だけを抽出 ---
+# --- PDF 全ページから拠点名リンクだけを抽出 ---
 for page in doc:
     links = page.get_links()
     blocks = page.get_text("blocks")
@@ -37,8 +37,8 @@ for page in doc:
         # 座標取得
         x0, y0, x1, y1 = link["from"]
 
-        # 左端のリンクだけ採用（拠点名は左端に縦並び）
-        if x0 > 100:  # 100px より右側は除外
+        # 拠点名リンクは左端にある → x0 が小さい
+        if x0 > 120:  # 120px より右側は除外（Amazon PDF に最適化）
             continue
 
         # 周囲テキストから最も近いものを取得
