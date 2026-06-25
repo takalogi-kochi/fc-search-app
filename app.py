@@ -24,6 +24,15 @@ for page in doc:
     links = page.get_links()
     blocks = page.get_text("blocks")
 
+    # 拠点名リンクのY座標帯を推定（左端のリンクのY位置はほぼ一定）
+    y_positions = [link["from"][1] for link in links if "uri" in link]
+    if not y_positions:
+        continue
+
+    # 拠点名リンクのY帯（最も密集している帯を抽出）
+    y_min = min(y_positions)
+    y_max = max(y_positions)
+
     for link in links:
         if "uri" not in link:
             continue
@@ -34,11 +43,10 @@ for page in doc:
         if uri.startswith("mailto:"):
             continue
 
-        # 座標取得
         x0, y0, x1, y1 = link["from"]
 
-        # 拠点名リンクは左端にある → x0 が小さい
-        if x0 > 120:  # 120px より右側は除外（Amazon PDF に最適化）
+        # 拠点名リンクは「縦に密集」している → Y座標帯で判定
+        if not (y_min <= y0 <= y_max):
             continue
 
         # 周囲テキストから最も近いものを取得
