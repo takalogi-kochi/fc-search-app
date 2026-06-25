@@ -2,8 +2,9 @@ import streamlit as st
 import fitz  # PyMuPDF
 import requests
 from io import BytesIO
+import re
 
-st.title("拠点検索アプリ")
+st.title("拠点検索 Webアプリ（自動更新型・外部PDF対応）")
 
 PDF_URL = "https://m.media-amazon.com/images/G/09/vendor/RC/FC_List_Operating_hours.pdf"
 
@@ -14,6 +15,10 @@ pdf_bytes = BytesIO(response.content)
 doc = fitz.open(stream=pdf_bytes.read(), filetype="pdf")
 
 base_points = {}
+
+# 拠点名の正規表現（Amazon FC の形式）
+# 例：HND3, KIX2, NGO5, AOM1 など
+pattern = re.compile(r"^[A-Z]{2,4}\d{1,2}$")
 
 # --- PDF 内のリンク注釈と周囲テキストから拠点名を抽出 ---
 for page in doc:
@@ -28,15 +33,7 @@ for page in doc:
         lx0, ly0, lx1, ly1 = link["from"]
         link_center = ((lx0 + lx1) / 2, (ly0 + ly1) / 2)
 
-        # まず注釈からテキストを取得
-        annot_text = ""
-        annots = page.annots()
-        if annots:
-            for annot in annots:
-                if annot.rect.intersects(fitz.Rect(lx0, ly0, lx1, ly1)):
-                    annot_text = annot.info.get("content", "").strip()
-
-        # 注釈にテキストが無い場合は、周囲テキストから最も近いものを取得
+        # 周囲テキストから最も近いものを取得
         nearest_text = None
         nearest_dist = 999999
 
@@ -50,11 +47,11 @@ for page in doc:
                 nearest_dist = dist
                 nearest_text = text.strip()
 
-        # 最終的な拠点名
-        key = annot_text if annot_text else nearest_text
-
-        if key:
-            base_points[key] = uri
+        # 正規表現で拠点名だけを抽出
+        if nearest_text:
+            candidate = nearest_text.split()[0]  # 先頭の単語を取る
+            if pattern.match(candidate):
+                base_points[candidate] = uri
 
 # --- 検索窓 ---
 keyword = st.text_input("拠点名を検索")
