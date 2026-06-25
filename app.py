@@ -4,7 +4,7 @@ import requests
 from io import BytesIO
 import re
 
-st.title("拠点検索 Webアプリ（自動更新型・外部PDF対応）")
+st.title("拠点検索アプリ")
 
 PDF_URL = "https://m.media-amazon.com/images/G/09/vendor/RC/FC_List_Operating_hours.pdf"
 
@@ -16,11 +16,10 @@ doc = fitz.open(stream=pdf_bytes.read(), filetype="pdf")
 
 base_points = {}
 
-# 拠点名の正規表現（Amazon FC の形式）
-# 例：HND3, KIX2, NGO5, AOM1 など
+# 拠点名の形式（例：HND3, KIX2, NGO5）
 pattern = re.compile(r"^[A-Z]{2,4}\d{1,2}$")
 
-# --- PDF 内のリンク注釈と周囲テキストから拠点名を抽出 ---
+# --- PDF 内のリンクから拠点名だけを抽出 ---
 for page in doc:
     links = page.get_links()
     blocks = page.get_text("blocks")
@@ -30,12 +29,23 @@ for page in doc:
             continue
 
         uri = link["uri"]
-        lx0, ly0, lx1, ly1 = link["from"]
-        link_center = ((lx0 + lx1) / 2, (ly0 + ly1) / 2)
+
+        # mailto: は除外
+        if uri.startswith("mailto:"):
+            continue
+
+        # 座標取得
+        x0, y0, x1, y1 = link["from"]
+
+        # 左端のリンクだけ採用（拠点名は左端に縦並び）
+        if x0 > 100:  # 100px より右側は除外
+            continue
 
         # 周囲テキストから最も近いものを取得
         nearest_text = None
         nearest_dist = 999999
+
+        link_center = ((x0 + x1) / 2, (y0 + y1) / 2)
 
         for block in blocks:
             bx0, by0, bx1, by1, text, *_ = block
@@ -47,9 +57,9 @@ for page in doc:
                 nearest_dist = dist
                 nearest_text = text.strip()
 
-        # 正規表現で拠点名だけを抽出
+        # 正規表現で拠点名だけ抽出
         if nearest_text:
-            candidate = nearest_text.split()[0]  # 先頭の単語を取る
+            candidate = nearest_text.split()[0]
             if pattern.match(candidate):
                 base_points[candidate] = uri
 
