@@ -47,14 +47,10 @@ for page in doc:
         if pattern.match(candidate):
             base_points[candidate] = uri
 
-# --- 検索窓 ---
-keyword = st.text_input("拠点名を検索")
+# --- 拠点名をソートして表示 ---
+all_keys = sorted(base_points.keys())
 
-# --- 絞り込み ---
-filtered_keys = [k for k in base_points.keys() if keyword.lower() in k.lower()]
-
-# --- 拠点一覧 ---
-selected = st.selectbox("拠点を選択", filtered_keys)
+selected = st.selectbox("拠点を選択してください", all_keys)
 
 # --- 選択された拠点の情報を表示 ---
 if selected:
